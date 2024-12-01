@@ -1,11 +1,11 @@
 number=$1
 template="
 def main():
-  with open('./input.txt') as file:
-    pass
+    with open('./input.txt') as file:
+        pass
 
 if __name__ == '__main__':
-  main()
+    main()
 "
 
 directory="Day${number}"
