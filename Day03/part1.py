@@ -7,15 +7,15 @@ def main():
     with open('./input.txt') as file:
         total = 0
 
+        index = 0
+
+        before_comma = True 
+        num1_str = None
+        num2_str = None
+        reset = False
+
         for line in file:
             line = line.strip()
-
-            index = 0
-
-            before_comma = True 
-            num1_str = None
-            num2_str = None
-            reset = False
 
             for char in line:
                 if reset == True:
