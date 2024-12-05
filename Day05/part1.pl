@@ -45,4 +45,6 @@ while (my $line = <$file>) {
     }
 }
 
+close ($file);
+
 print("Total: $total\n");

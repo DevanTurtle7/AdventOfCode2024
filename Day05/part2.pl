@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 use String::Util 'trim';
+use List::Util 'min';
 
 open (my $file, "<", "input.txt") or die $!;
 
@@ -29,27 +30,15 @@ while (my $line = <$file>) {
 
         foreach my $i (0..$#updates) {
             my $num = $updates[$i];
-            my $conflict = 0;
-            my $conflict_index = 0;
+            my @conflict_indexes = map {exists $visited{$_} ? $visited{$_} : ()} @{$rules{$num}};
 
-            foreach my $prev (@{$rules{$num}}) {
-                if (exists $visited{$prev}) {
-                    my $current_conflict_index = $visited{$prev};
+            if ($#conflict_indexes >= 0) {
+                my $first_conflict = min(@conflict_indexes);
 
-                    if (!$conflict || ($conflict && $conflict_index > $current_conflict_index)) {
-                        $conflict_index = $current_conflict_index;
-                    }
-
-                    $conflict = 1;
-                    $reordered = 1;
-                }
-            }
-
-            if ($conflict) {
                 splice(@updates, $i, 1);
-                splice(@updates, $conflict_index, 0, $num);
+                splice(@updates, $first_conflict, 0, $num);
 
-                $visited{$num} = $conflict_index;
+                $visited{$num} = $first_conflict;
 
                 foreach my $j (0..$i) {
                     my $current = $updates[$j];
@@ -58,6 +47,8 @@ while (my $line = <$file>) {
                         $visited{$current} = $j;
                     }
                 }
+
+                $reordered = 1;
             } else {
                 $visited{$num} = $i;
             }
@@ -68,5 +59,7 @@ while (my $line = <$file>) {
         }
     }
 }
+
+close ($file);
 
 print("Total: $total\n");
