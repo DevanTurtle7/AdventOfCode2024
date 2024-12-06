@@ -41,7 +41,7 @@ sub run_simulation {
     my %positions;
 
     if (exists $obstacles{$extra_obstacle[0]}{$extra_obstacle[1]}) {
-        return (1, %positions);
+        return (1, \%positions);
     }
 
     my $current_x = $start_position[0];
@@ -74,7 +74,7 @@ sub run_simulation {
                 push(@{$positions{$key}}, \@current_direction);
             } elsif ($match_found) {
                 # Looping
-                return (0, %positions);
+                return (0, \%positions);
             }
         }
 
@@ -93,16 +93,17 @@ sub run_simulation {
         }
     }
 
-    return (1, %positions);
+    return (1, \%positions);
 }
 
 my $total = 0;
 my @dummy_obstacle = ($minX - 1, $minY - 1);
-my ($result, %trail) = run_simulation(\@start_position, \@dummy_obstacle);
+my ($result, $trail_ref) = run_simulation(\@start_position, \@dummy_obstacle);
+my %trail = %$trail_ref;
 
 foreach my $position_key (keys %trail) {
     my @coords = split(",", $position_key);
-    my ($result, %trail) = run_simulation(\@start_position, \@coords);
+    my ($result) = run_simulation(\@start_position, \@coords);
 
     unless ($result) {
         $total += 1;
