@@ -34,17 +34,19 @@ close ($file);
 
 $maxY = $y - 1;
 
-sub is_loop {
-    my @extra_obstacle = @_;
+sub run_simulation {
+    my ($start_position_ref, $extra_obstacle_ref) = @_;
+    my @start_position = @$start_position_ref;
+    my @extra_obstacle = @$extra_obstacle_ref;
+    my %positions;
 
     if (exists $obstacles{$extra_obstacle[0]}{$extra_obstacle[1]}) {
-        return 0;
+        return (1, %positions);
     }
 
     my $current_x = $start_position[0];
     my $current_y = $start_position[1];
     my @direction = (0, -1);
-    my %positions;
     my $moved = 1; # Set to 1 so that starting position is saved first iteration
 
     while ($current_x >= $minX && $current_x <= $maxX && $current_y >= $minY && $current_y <= $maxY) {
@@ -71,7 +73,8 @@ sub is_loop {
                 my @current_direction = ($direction[0], $direction[1]);
                 push(@{$positions{$key}}, \@current_direction);
             } elsif ($match_found) {
-                return 1;
+                # Looping
+                return (0, %positions);
             }
         }
 
@@ -90,19 +93,20 @@ sub is_loop {
         }
     }
 
-    return 0;
+    return (1, %positions);
 }
 
 my $total = 0;
+my @dummy_obstacle = ($minX - 1, $minY - 1);
+my ($result, %trail) = run_simulation(\@start_position, \@dummy_obstacle);
 
-foreach my $obstacle_x ($minX..$maxX) {
-    foreach my $obstacle_y ($minY..$maxY) {
-        my @obstacle_coords = ($obstacle_x, $obstacle_y);
+foreach my $position_key (keys %trail) {
+    my @coords = split(",", $position_key);
+    my ($result, %trail) = run_simulation(\@start_position, \@coords);
 
-        if (is_loop(@obstacle_coords)) {
-            $total += 1;
-            print("$total\n");
-        }
+    unless ($result) {
+        $total += 1;
+        print("$total\n");
     }
 }
 
