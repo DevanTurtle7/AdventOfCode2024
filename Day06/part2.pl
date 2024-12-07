@@ -3,7 +3,7 @@ use warnings;
 use String::Util qw(trim);
 
 my %obstacles;
-my @start_position;
+my @orig_start_position;
 my $y = 0;
 
 my $minX = 0;
@@ -23,7 +23,7 @@ while (my $line = <$file>) {
         if ($char eq "#") {
             $obstacles{$x}{$y} = 1;
         } elsif ($char eq "^") {
-            @start_position = ($x, $y);
+            @orig_start_position = ($x, $y);
         }
     }
 
@@ -35,19 +35,28 @@ close ($file);
 $maxY = $y - 1;
 
 sub run_simulation {
-    my ($start_position_ref, $extra_obstacle_ref) = @_;
+    my ($start_position_ref, $extra_obstacle_ref, $direction_ref) = @_;
     my @start_position = @$start_position_ref;
     my @extra_obstacle = @$extra_obstacle_ref;
+    my @direction = @$direction_ref;
     my %positions;
+    my %prev_positions;
+
 
     if (exists $obstacles{$extra_obstacle[0]}{$extra_obstacle[1]}) {
-        return (1, \%positions);
+        return (1, \%positions, \%prev_positions);
     }
 
     my $current_x = $start_position[0];
     my $current_y = $start_position[1];
-    my @direction = (0, -1);
     my $moved = 1; # Set to 1 so that starting position is saved first iteration
+
+    my $start_position_key = "$current_x,$current_y";
+    my @positions = ($current_x, $current_y);
+    my @direction_copy = ($direction[0], $direction[1]);
+    my @data = (\@positions, \@direction_copy);
+    
+    $prev_positions{$start_position_key} = \@data;
 
     while ($current_x >= $minX && $current_x <= $maxX && $current_y >= $minY && $current_y <= $maxY) {
         if ($moved) {
@@ -74,7 +83,7 @@ sub run_simulation {
                 push(@{$positions{$key}}, \@current_direction);
             } elsif ($match_found) {
                 # Looping
-                return (0, \%positions);
+                return (0, \%positions, \%prev_positions);
             }
         }
 
@@ -86,6 +95,16 @@ sub run_simulation {
             @direction = ($direction[1] * -1, $direction[0]);
             $moved = 0;
         } else {
+            my $key = "$new_x,$new_y";
+
+            unless (exists $prev_positions{$key}) {
+                my @positions = ($current_x, $current_y);
+                my @direction_copy = ($direction[0], $direction[1]);
+                my @data = (\@positions, \@direction_copy);
+                
+                $prev_positions{$key} = \@data;
+            }
+
             # Move forward
             $current_x = $new_x;
             $current_y = $new_y;
@@ -93,21 +112,29 @@ sub run_simulation {
         }
     }
 
-    return (1, \%positions);
+    return (1, \%positions, \%prev_positions);
 }
 
 my $total = 0;
 my @dummy_obstacle = ($minX - 1, $minY - 1);
-my ($result, $trail_ref) = run_simulation(\@start_position, \@dummy_obstacle);
+my @direction = (0, -1);
+my ($result, $trail_ref, $prev_positions_ref) = run_simulation(\@orig_start_position, \@dummy_obstacle, \@direction);
 my %trail = %$trail_ref;
+my %prev_positions = %$prev_positions_ref;
 
 foreach my $position_key (keys %trail) {
     my @coords = split(",", $position_key);
-    my ($result) = run_simulation(\@start_position, \@coords);
+
+    my $prev_position_data_ref = $prev_positions{$position_key};
+    my $start_position_ref = @$prev_position_data_ref[0];
+    my $direction_ref = @$prev_position_data_ref[1];
+    my @start_position = @$start_position_ref;
+    my @direction = @$direction_ref;
+
+    my ($result) = run_simulation(\@start_position, \@coords, \@direction);
 
     unless ($result) {
         $total += 1;
-        print("$total\n");
     }
 }
 
