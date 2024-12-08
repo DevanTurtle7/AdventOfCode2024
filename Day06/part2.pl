@@ -59,7 +59,7 @@ sub run_simulation {
     $prev_positions{$start_position_key} = \@data;
 
     while ($current_x >= $minX && $current_x <= $maxX && $current_y >= $minY && $current_y <= $maxY) {
-        if ($moved && wantarray()) {
+        if ($moved) {
             my $key = "$current_x,$current_y";
             my $key_exists = exists $positions{$key};
             my $match_found = 0;
@@ -133,7 +133,7 @@ foreach my $position_key (keys %trail) {
     my @start_position = @$start_position_ref;
     my @direction = @$direction_ref;
 
-    my ($result) = run_simulation(\@start_position, \@coords, \@direction);
+    my $result = run_simulation(\@start_position, \@coords, \@direction);
 
     unless ($result) {
         $total += 1;
