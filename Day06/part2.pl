@@ -44,7 +44,7 @@ sub run_simulation {
 
 
     if (exists $obstacles{$extra_obstacle[0]}{$extra_obstacle[1]}) {
-        return (1, \%positions, \%prev_positions);
+        return wantarray() ? (1, \%positions, \%prev_positions) : 1;
     }
 
     my $current_x = $start_position[0];
@@ -59,7 +59,7 @@ sub run_simulation {
     $prev_positions{$start_position_key} = \@data;
 
     while ($current_x >= $minX && $current_x <= $maxX && $current_y >= $minY && $current_y <= $maxY) {
-        if ($moved) {
+        if ($moved && wantarray()) {
             my $key = "$current_x,$current_y";
             my $key_exists = exists $positions{$key};
             my $match_found = 0;
@@ -83,7 +83,7 @@ sub run_simulation {
                 push(@{$positions{$key}}, \@current_direction);
             } elsif ($match_found) {
                 # Looping
-                return (0, \%positions, \%prev_positions);
+                return wantarray() ? (0, \%positions, \%prev_positions) : 0;
             }
         }
 
@@ -95,14 +95,16 @@ sub run_simulation {
             @direction = ($direction[1] * -1, $direction[0]);
             $moved = 0;
         } else {
-            my $key = "$new_x,$new_y";
+            if (wantarray()) {
+                my $key = "$new_x,$new_y";
 
-            unless (exists $prev_positions{$key}) {
-                my @positions = ($current_x, $current_y);
-                my @direction_copy = ($direction[0], $direction[1]);
-                my @data = (\@positions, \@direction_copy);
-                
-                $prev_positions{$key} = \@data;
+                unless (exists $prev_positions{$key}) {
+                    my @positions = ($current_x, $current_y);
+                    my @direction_copy = ($direction[0], $direction[1]);
+                    my @data = (\@positions, \@direction_copy);
+                    
+                    $prev_positions{$key} = \@data;
+                }
             }
 
             # Move forward
@@ -112,7 +114,7 @@ sub run_simulation {
         }
     }
 
-    return (1, \%positions, \%prev_positions);
+    return wantarray() ? (1, \%positions, \%prev_positions) : 1;
 }
 
 my $total = 0;
