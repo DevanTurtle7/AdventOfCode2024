@@ -20,6 +20,33 @@ package Node {
         my ($self, $new_node) = @_;
         $self->{prev_node} = $new_node;
     }
+
+    sub eat_neighbors {
+        my $self = shift;
+
+        if (defined $self->prev_node && !!$self->prev_node->space) {
+            my $prev_node = $self->prev_node;
+            my $space = $prev_node->space;
+
+            $self->{size} += $prev_node->size;
+            $self->set_prev($prev_node->prev_node);
+
+            if (defined $prev_node->prev_node) {
+                $prev_node->prev_node->set_next($self);
+            }
+        }
+
+        if (defined $self->next_node && !!$self->next_node->space) {
+            my $next_node = $self->next_node;
+
+            $self->{size} += $next_node->size;
+            $self->set_next($next_node->next_node);
+
+            if (defined $next_node->next_node) {
+                $next_node->next_node->set_prev($self);
+            }
+        }
+    }
 }
 
 my $disk_map;
@@ -64,8 +91,6 @@ while ($index < $line_length) {
     $index++;
 }
 
-my $all_nodes_checked = !!0;
-
 foreach my $node (reverse @nodes) {
     my $current = $head;
     my $space_found = !!0;
@@ -74,7 +99,7 @@ foreach my $node (reverse @nodes) {
         $node = $node->prev_node;
         next;
     }
-
+    
     while (!$space_found && $current) {
         unless ($current->space) {
             if ($current->id eq $node->id) {
@@ -137,6 +162,8 @@ foreach my $node (reverse @nodes) {
                 $node->set_next($current->next_node);
             }
         }
+
+        $empty_space->eat_neighbors();
     }
 }
 
