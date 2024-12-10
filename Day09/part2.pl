@@ -2,51 +2,11 @@ use strict;
 use warnings;
 use String::Util qw(trim);
 
-package Node {
+package File {
     use Moose;
 
-    has 'next_node' => (is => 'rw');
-    has 'prev_node' => (is => 'rw');
     has 'id' => (is => 'rw');
-    has 'space' => (is => 'rw', default => !!0);
     has 'size' => (is => 'rw');
-
-    sub set_next {
-        my ($self, $new_node) = @_;
-        $self->{next_node} = $new_node;
-    }
-
-    sub set_prev {
-        my ($self, $new_node) = @_;
-        $self->{prev_node} = $new_node;
-    }
-
-    sub eat_neighbors {
-        my $self = shift;
-
-        if (defined $self->prev_node && !!$self->prev_node->space) {
-            my $prev_node = $self->prev_node;
-            my $space = $prev_node->space;
-
-            $self->{size} += $prev_node->size;
-            $self->set_prev($prev_node->prev_node);
-
-            if (defined $prev_node->prev_node) {
-                $prev_node->prev_node->set_next($self);
-            }
-        }
-
-        if (defined $self->next_node && !!$self->next_node->space) {
-            my $next_node = $self->next_node;
-
-            $self->{size} += $next_node->size;
-            $self->set_next($next_node->next_node);
-
-            if (defined $next_node->next_node) {
-                $next_node->next_node->set_prev($self);
-            }
-        }
-    }
 }
 
 my $disk_map;
@@ -61,131 +21,96 @@ close ($file);
 
 my $line_length = length($disk_map);
 my $index = 0;
-my $head;
-my $prev;
-my @nodes;
+my @blocks;
+my @files;
 
 while ($index < $line_length) {
     my $size = substr($disk_map, $index, 1);
 
-    unless ($head) {
-        $head = Node->new(size => $size, id => $index / 2);
-        $prev = $head;
-        $index++;
-        push(@nodes, $head);
-        next;
-    }
-
-    my $current;
-
     if (!($index % 2)) {
-        $current = Node->new(size => $size, prev_node => $prev, id => $index / 2);
-        push(@nodes, $current);
+        my $current = File->new(size => $size, id => $index / 2);
+        push(@blocks, $current);
+        push(@files, $current);
     } else {
-        $current = Node->new(size => $size, prev_node => $prev, space => !!1);
+        push(@blocks, $size);
     }
-
-    $prev->set_next($current);
-    $prev = $current;
 
     $index++;
 }
 
-foreach my $node (reverse @nodes) {
-    my $current = $head;
-    my $space_found = !!0;
+foreach my $file (reverse @files) {
+    my $last_file = $#blocks - ($#blocks % 2);
+    my $file_index = $last_file;
 
-    if ($node->space) {
-        $node = $node->prev_node;
-        next;
-    }
-    
-    while (!$space_found && $current) {
-        unless ($current->space) {
-            if ($current->id eq $node->id) {
-                $space_found = !!0;
-                last;
-            } else {
-                $current = $current->next_node;
-                next;
-            }
+    while ($file_index >= 0) {
+        if ($blocks[$file_index] eq $file) {
+            last;
         }
 
-        my $current_size = $current->size;
-        my $node_size = $node->size;
+        $file_index -= 2;
+    }
 
-        if ($current->size >= $node->size) {
+    my $space_found = !!0;
+    my $space_index = 1;
+
+    while (!$space_found && $space_index < $file_index) {
+        if ($blocks[$space_index] >= $file->size) {
             $space_found = !!1;
             last;
         }
 
-        $current = $current->next_node;
+        $space_index += 2;
     }
 
+
     if ($space_found) {
-        my $space_remaining = $current->size - $node->size;
+        # Remove the file
+        my $total_space = $file->size;
 
-        # TODO: Leave empty space when end is moved
-        my $empty_space = Node->new(
-            size => $node->size,
-            space => !!1,
-            prev_node => $node->prev_node,
-            next_node => $node->next_node
-        );
-
-        if (defined $node->prev_node) {
-            $node->prev_node->set_next($empty_space);
+        if ($file_index > 0) {
+            my $prev_block = $blocks[$file_index - 1];
+            $total_space += $blocks[$file_index - 1];
         }
 
-        if (defined $node->next_node) {
-            $node->next_node->set_prev($empty_space);
+        if ($file_index < $#files) {
+            $total_space += $blocks[$file_index + 1];
         }
 
-        if (defined $current->prev_node) {
-            $current->prev_node->set_next($node);
-            $node->set_prev($current->prev_node);
+        $blocks[$file_index] = $total_space;
+
+        if ($file_index < $#files) {
+            splice(@blocks, $file_index + 1, 1);
         }
 
-        if (defined $current->next_node) {
-            if ($space_remaining > 0) {
-                my $space_left = Node->new(
-                    size => $space_remaining,
-                    space => !!1,
-                    prev_node => $node,
-                    next_node => $current->next_node
-                );
-
-                $current->next_node->set_prev($space_left);
-                $node->set_next($space_left);
-            } else {
-                $current->next_node->set_prev($node);
-                $node->set_next($current->next_node);
-            }
+        if ($file_index > 0) {
+            splice(@blocks, $file_index - 1, 1);
         }
 
-        $empty_space->eat_neighbors();
+        # Add the file back in the new space
+        my $space = $blocks[$space_index];
+        my $space_remaining = $space - $file->size;
+
+        splice(@blocks, $space_index, 1);
+        splice(@blocks, $space_index, 0, $space_remaining);
+        splice(@blocks, $space_index, 0, $file);
+        splice(@blocks, $space_index, 0, 0);
     }
 }
 
 my $checksum = 0;
-my $current = $head;
 my $position = 0;
 
-while ($current) {
-    if ($current->space) {
-        $position += $current->size;
-        $current = $current->next_node;
-        next;
+foreach my $block (@blocks) {
+    if ($block->isa('File')) {
+        for my $i (1..$block->size) {
+            $checksum += $block->id * $position;
+            $position++;
+        }
+    } else {
+        unless ($block eq 0) {
+            $position += $block;
+        }
     }
-
-    my $size = $current->size;
-
-    for (my $i = $size; $i > 0; $i--) {
-        $checksum += $current->id * $position;
-        $position++;
-    }
-
-    $current = $current->next_node;
 }
 
 print("$checksum\n");
