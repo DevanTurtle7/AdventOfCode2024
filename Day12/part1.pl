@@ -19,46 +19,52 @@ sub valid_coords {
 
 
 sub get_fencing {
-    my ($x, $y) = @_;
-    my @neighbors;
-
-    for my $add_x (-1..1) {
-        for my $add_y (-1..1) {
-            if (($add_x == 0 && $add_y == 0) || abs($add_x) == abs($add_y)) {
-                next;
-            }
-
-            my $neighbor_x = $x + $add_x;
-            my $neighbor_y = $y + $add_y;
-
-            if (!valid_coords($neighbor_x, $neighbor_y)) {
-                next;
-            }
-
-            if ($grid{$neighbor_x}{$neighbor_y} eq $grid{$x}{$y}) {
-                push(@neighbors, [$neighbor_x, $neighbor_y]);
-            }
-        }
-    }
+    my ($start_x, $start_y) = @_;
+    my @to_visit = ([$start_x, $start_y]);
+    my $plant = $grid{$start_x}{$start_y};
+    my %checked;
+    my %num_neighbors;
 
     my $num_plots = 1;
-    my $num_fencing = 4 - ($#neighbors + 1);
-    my $key = "$x,$y";
+    my $num_fencing = 0;
 
-    $visited{$key} = 1;
+    $checked{$start_x}{$start_y} = 1;
 
-    foreach my $neighbor_coords_ref (@neighbors) {
-        my @neighbor_coords = @$neighbor_coords_ref;
-        my ($neighbor_x, $neighbor_y) = @neighbor_coords;
-        my $neighbor_key = "$neighbor_x,$neighbor_y";
-        
-        if (exists $visited{$neighbor_key}) {
-            next;
+    while ($#to_visit >= 0) {
+        my $coords_ref = pop @to_visit;
+        my ($x, $y) = @$coords_ref;
+        my $current_fencing = 4;
+        $visited{$x}{$y} = 1;
+
+        for my $add_x (-1..1) {
+            for my $add_y (-1..1) {
+                if (($add_x == 0 && $add_y == 0) || abs($add_x) == abs($add_y)) {
+                    next;
+                }
+
+                my $neighbor_x = $x + $add_x;
+                my $neighbor_y = $y + $add_y;
+
+                if (
+                    !valid_coords($neighbor_x, $neighbor_y)
+                ) {
+                    next;
+                }
+
+
+                if ($grid{$neighbor_x}{$neighbor_y} eq $plant) {
+                    $current_fencing--;
+
+                    if (!exists $checked{$neighbor_x}{$neighbor_y}) {
+                        push(@to_visit, [$neighbor_x, $neighbor_y]);
+                        $checked{$neighbor_x}{$neighbor_y} = 1;
+                        $num_plots++;
+                    }
+                }
+            }
         }
 
-        my ($num_neighbor_plots, $num_neighbor_fencing) = get_fencing($neighbor_x, $neighbor_y);
-        $num_plots += $num_neighbor_plots;
-        $num_fencing += $num_neighbor_fencing;
+        $num_fencing += $current_fencing;
     }
 
     return ($num_plots, $num_fencing);
@@ -89,8 +95,7 @@ foreach my $x (keys %grid) {
     my %y_hash = %$y_hash_ref;
 
     foreach my $y (keys %y_hash) {
-        my $key = "$x,$y";
-        unless (exists $visited{$key}) {
+        unless (exists $visited{$x} && exists $visited{$x}{$y}) {
             my ($num_plots, $num_fencing) = get_fencing($x, $y);
             $total += $num_plots * $num_fencing;
         }
