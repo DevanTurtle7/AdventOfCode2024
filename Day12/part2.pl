@@ -41,27 +41,12 @@ package Side {
 
         $self->{plots} = \@plots;
 
-        print("JOINING\n");
-
         foreach my $coords_ref (@other_plots) {
             my ($x, $y) = @$coords_ref;
-            #$sides{"$x,$y"}{"$x_dir,$y_dir"} = $self;
-            print("A adding key $x,$y\n");
-            #print("OTHER: $x, $y\n");
+            $sides{"$x,$y"}{"$x_dir,$y_dir"} = $self;
         }
     }
 }
-
-#my $side = Side->new(x_dir => 1, y_dir => 0, plots => [[1,2]]);
-#my $side2 = Side->new(x_dir => 1, y_dir => 0, plots => [[3,4], [5, 6]]);
-#$side->join($side2);
-
-#my @plots = @{$side->plots};
-
-#foreach my $plot_ref (@plots) {
-    #my ($x, $y) = @$plot_ref;
-    #print("$x, $y\n");
-#}
 
 sub valid_coords {
     my ($x, $y) = @_;
@@ -70,6 +55,8 @@ sub valid_coords {
 }
 
 sub get_fencing {
+    my %empty;
+    %sides = %empty;
     my ($start_x, $start_y) = @_;
     my @to_visit = ([$start_x, $start_y]);
     my $plant = $grid{$start_x}{$start_y};
@@ -99,7 +86,6 @@ sub get_fencing {
                 my $key = "$x_str,$y_str";
                 my $dir_key = "$add_x,$add_y";
 
-                print("B adding key $key\n");
                 $sides{$key}{$dir_key} = Side->new(
                     x_dir => $add_x,
                     y_dir => $add_y,
@@ -116,7 +102,6 @@ sub get_fencing {
                 if ($grid{$neighbor_x}{$neighbor_y} eq $plant) {
                     $current_fencing--;
                     delete $sides{$key}{$dir_key};
-                    print("deleting key $key\n");
                     my $x_delta = $x - $neighbor_x;
                     my $y_delta = $y - $neighbor_y;
                     my $delta_key = "$x_delta,$y_delta";
@@ -140,13 +125,9 @@ sub get_fencing {
         my ($x, $y) = split(",", $key);
         my %sides_hash = %{$sides{$key}};
 
-        print("MY $x, $y\n");
-
         foreach my $side_dir (keys %sides_hash) {
             my $side = $sides{$key}{$side_dir};
             my ($x_dir, $y_dir) = split(",", $side_dir);
-
-            print("side: $side_dir\n");
 
             for (my $i = -1; $i <= 1; $i += 2) {
                 my $inverse_x = $x + ($y_dir * $i);
@@ -157,38 +138,22 @@ sub get_fencing {
                 my $y_delta = $y - $inverse_y;
                 my $delta_key = "$x_delta,$y_delta";
 
-                foreach my $key (keys %{$neighbors{$key}}) {
-                    print("key: $key, $side_dir\n");
-                }
-
                 if (exists $neighbors{$key}{$delta_key} && exists $sides{$inverse_key}{$side_dir}) {
                     my $neighbor_side = $sides{$inverse_key}{$side_dir};
                     $side->join($neighbor_side); }
             }
 
         }
-        print("\n");
     }
 
     my %unique_sides;
 
     foreach my $key (keys %sides) {
-        print("KEY: $key\n");
         my %sides_hash = %{$sides{$key}};
         
         foreach my $side_dir (keys %sides_hash) {
             my $side = $sides{$key}{$side_dir};
-            print("$side\n");
-            my @plots = @{$side->plots};
-            my $x_dir = $side->x_dir;
-            my $y_dir = $side->y_dir;
 
-            print("dir: $x_dir,$y_dir\n");
-
-            foreach my $coords (@plots) {
-                my ($x,$y) = @{$coords};
-                print("$x,$y\n");
-            }
             $unique_sides{$side} = $side;
         }
     }
@@ -205,7 +170,7 @@ sub get_fencing {
     my $num_sides = keys %unique_sides;
     print("PLANT: $plant, $num_sides\n");
 
-    return ($num_plots, $num_fencing);
+    return ($num_plots, $num_sides);
 }
 
 open (my $file, "<", "input.txt") or die $!;
@@ -234,8 +199,8 @@ foreach my $x (keys %grid) {
 
     foreach my $y (keys %y_hash) {
         unless (exists $visited{$x} && exists $visited{$x}{$y}) {
-            my ($num_plots, $num_fencing) = get_fencing($x, $y);
-            $total += $num_plots * $num_fencing;
+            my ($num_plots, $num_sides) = get_fencing($x, $y);
+            $total += $num_plots * $num_sides;
         }
     }
 }
