@@ -45,12 +45,9 @@ sub get_fencing {
                 my $neighbor_x = $x + $add_x;
                 my $neighbor_y = $y + $add_y;
 
-                if (
-                    !valid_coords($neighbor_x, $neighbor_y)
-                ) {
+                if (!valid_coords($neighbor_x, $neighbor_y)) {
                     next;
                 }
-
 
                 if ($grid{$neighbor_x}{$neighbor_y} eq $plant) {
                     $current_fencing--;
