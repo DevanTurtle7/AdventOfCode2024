@@ -45,6 +45,11 @@ sub command_to_movements {
     # TODO: I think I need to generate all possible permutations.
     # This probably needs to be recursive
     # Take only the shortest permutations and move onto the next layer
+    # 
+    # Could do a BFS style alg. Remember which button you're currently
+    # hovering over and where you are trying to go. If you are over the button
+    # Add an "A" and move to the next button. BFS would generate all possible
+    # paths.
 
     for my $i (0..length($command) - 1) {
         my $char = substr($command, $i, 1);
