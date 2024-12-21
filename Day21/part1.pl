@@ -49,28 +49,28 @@ sub command_to_movements {
         my $delta_y = $button_y - $y;
         my $x_dir = $delta_x == 0 ? 0 : $delta_x / abs($delta_x);
         my $y_dir = $delta_y == 0 ? 0 : $delta_y / abs($delta_y);
-        my $x_char = $x_dir == -1 ? "<" : ">";
-        my $y_char = $y_dir == -1 ? "^" : "v";
 
+        # Prioritize left, then down, then right, then up
+        # Loop twice incase any movements are skipped due to invalid position on keypad
         for my $i (0..1) {
             if ($x_dir == -1 && exists $valid_key_pos{"$button_x,$y"} && $x != $button_x) {
                 $x = $button_x;
-                $command_str .= $x_char x abs($delta_x);
+                $command_str .= "<" x abs($delta_x);
             }
 
             if ($y_dir == 1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
                 $y = $button_y;
-                $command_str .= $y_char x abs($delta_y);
+                $command_str .= "v" x abs($delta_y);
             }
 
             if ($x_dir == 1 && exists $valid_key_pos{"$button_x,$y"} && $x != $button_x) {
                 $x = $button_x;
-                $command_str .= $x_char x abs($delta_x);
+                $command_str .= ">" x abs($delta_x);
             }
 
             if ($y_dir == -1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
                 $y = $button_y;
-                $command_str .= $y_char x abs($delta_y);
+                $command_str .= "^" x abs($delta_y);
             }
         }
 
@@ -86,6 +86,7 @@ my $total = 0;
 
 while (my $line = <$file>) {
     chomp($line);
+
     my $command_str = $line;
     my $numbers = $line;
     $numbers =~ s/\D//g;
@@ -97,11 +98,8 @@ while (my $line = <$file>) {
             $i == 0 ? \%num_keypad : \%dir_keypad,
             $i == 0 ? \%valid_num_key_pos : \%valid_dir_key_pos
         );
-        print("$command_str\n");
     }
 
-    my $len = length($command_str);
-    print("$len, $numbers\n");
     $total += length($command_str) * $numbers;
 }
 
