@@ -27,57 +27,79 @@ my %valid_dir_key_pos;
 
 foreach my $key (keys %num_keypad) {
     my ($x, $y) = @{$num_keypad{$key}};
-    $valid_num_key_pos{"$x,$y"} = 1;
+    $valid_num_key_pos{"$x,$y"} = $key;
 }
 
 foreach my $key (keys %dir_keypad) {
     my ($x, $y) = @{$dir_keypad{$key}};
-    $valid_dir_key_pos{"$x,$y"} = 1;
+    $valid_dir_key_pos{"$x,$y"} = $key;
 }
 
-sub command_to_movements {
-    my ($command, $keypad_ref, $valid_key_pos_ref) = @_;
+my %dir_keypad_memo;
+
+foreach my $from_key (keys %dir_keypad) {
+    foreach my $to_key (keys %dir_keypad) {
+        my @permutations;
+        @permutations = trace_command($to_key, 0, "", $dir_keypad{$from_key}, \%dir_keypad, \%valid_dir_key_pos, \@permutations);
+
+        foreach my $permutation (@permutations) {
+            push(@{$dir_keypad_memo{$from_key}{$to_key}}, $permutation);
+        }
+    }
+}
+
+sub trace_command {
+    my ($command, $index, $prev_commands, $position, $keypad_ref, $valid_key_pos_ref, $solutions_ref) = @_;
+    my ($x, $y) = @{$position};
     my %keypad = %{$keypad_ref};
     my %valid_key_pos = %{$valid_key_pos_ref};
-    my ($x, $y) = @{$keypad{"A"}};
-    my $command_str = "";
 
-    # TODO: I think I need to generate all possible permutations.
-    # This probably needs to be recursive
-    # Take only the shortest permutations and move onto the next layer
-    # 
-    # Could do a BFS style alg. Remember which button you're currently
-    # hovering over and where you are trying to go. If you are over the button
-    # Add an "A" and move to the next button. BFS would generate all possible
-    # paths.
-
-    for my $i (0..length($command) - 1) {
-        my $char = substr($command, $i, 1);
-        my ($button_x, $button_y) = @{$keypad{$char}};
-        my $delta_x = $button_x - $x;
-        my $delta_y = $button_y - $y;
-
-        # To best optimize later keypad iterations, all horizontal/vertical movements should be done all at once
-        if (exists $valid_key_pos{"$button_x,$y"}) {
-            $x = $button_x;
-            $command_str .= ($delta_x > 0 ? ">" : "<") x abs($delta_x);
-        }
-
-        if (exists $valid_key_pos{"$x,$button_y"}) {
-            $y = $button_y;
-            $command_str .= ($delta_y > 0 ? "v" : "^") x abs($delta_y);
-        }
-
-        # Move horizontally we if haven't already
-        if (exists $valid_key_pos{"$button_x,$y"} && $x != $button_x) {
-            $x = $button_x;
-            $command_str .= ($delta_x > 0 ? ">" : "<") x abs($delta_x);
-        }
-
-        $command_str .= "A";
+    if ($index >= length($command)) {
+        push(@{$solutions_ref}, $prev_commands);
+        return @{$solutions_ref};
     }
 
-    return $command_str;
+    my $to_char = substr($command, $index, 1);
+    my $from_char = $valid_key_pos{"$x,$y"};
+    my ($button_x, $button_y) = @{$keypad{$to_char}};
+    my $delta_x = $button_x - $x;
+    my $delta_y = $button_y - $y;
+
+    if (exists $dir_keypad_memo{$from_char} && exists $dir_keypad_memo{$from_char}{$to_char}) {
+        my @permutations = @{$dir_keypad_memo{$from_char}{$to_char}};
+
+        foreach my $permutation (@permutations) {
+            trace_command($command, $index + 1, $prev_commands.$permutation, [$button_x, $button_y], $keypad_ref, $valid_key_pos_ref, $solutions_ref);
+        }
+        return @{$solutions_ref};
+    }
+
+    if ($delta_x == 0 && $delta_y == 0) {
+        return trace_command($command, $index + 1, $prev_commands."A", [$x, $y], $keypad_ref, $valid_key_pos_ref, $solutions_ref);
+    }
+
+    if ($delta_x != 0) {
+        my $x_dir = $delta_x / abs($delta_x);
+        my $new_x = $x + $x_dir;
+
+        if (exists $valid_key_pos{"$new_x,$y"}) {
+            my $x_char = $x_dir > 0 ? ">" : "<";
+            trace_command($command, $index, $prev_commands.$x_char, [$new_x, $y], $keypad_ref, $valid_key_pos_ref, $solutions_ref);
+        }
+    }
+
+    if ($delta_y != 0) {
+        my $y_dir = $delta_y / abs($delta_y);
+        my $new_y = $y + $y_dir;
+
+        if (exists $valid_key_pos{"$x,$new_y"}) {
+            my $y_char = $y_dir > 0 ? "v" : "^";
+            trace_command($command, $index, $prev_commands.$y_char, [$x, $new_y], $keypad_ref, $valid_key_pos_ref, $solutions_ref);
+        }
+    }
+
+
+    return @{$solutions_ref};
 }
 
 open (my $file, "<", "input.txt") or die $!;
@@ -86,23 +108,55 @@ my $total = 0;
 
 while (my $line = <$file>) {
     chomp($line);
-    my $command_str = $line;
     my $numbers = $line;
     $numbers =~ s/\D//g;
     $numbers += 0;
+    my @commands = ($line);
+    print("$line\n");
 
     for my $i (0..2) {
-        $command_str = command_to_movements(
-            $command_str,
-            $i == 0 ? \%num_keypad : \%dir_keypad,
-            $i == 0 ? \%valid_num_key_pos : \%valid_dir_key_pos
-        );
-        print("$command_str\n");
+        my $shortest_path = "inf" + 0;
+        my @shortest_solutions;
+
+        foreach my $command (@commands) {
+            my $keypad = ($i == 0 ? \%num_keypad : \%dir_keypad);
+            my @solutions;
+
+            @solutions = trace_command(
+                $command, #Command
+                0, #Index
+                "", # Prev commands
+                $keypad->{"A"}, # Position
+                $keypad,
+                $i == 0 ? \%valid_num_key_pos : \%valid_dir_key_pos,
+                \@solutions,
+            );
+
+            my %unique;
+
+            foreach my $solution (@solutions) {
+                $unique{$solution} = 1;
+            }
+
+            foreach my $solution (keys %unique) {
+                my $solution_length = length($solution);
+
+                if ($solution_length < $shortest_path) {
+                    $shortest_path = $solution_length;
+                    @shortest_solutions = ();
+                    push(@shortest_solutions, $solution);
+                } elsif ($solution_length == $shortest_path) {
+                    push(@shortest_solutions, $solution);
+                }
+            }
+        }
+
+        @commands = @shortest_solutions;
     }
 
-    my $len = length($command_str);
-    print("$len, $numbers\n");
-    $total += length($command_str) * $numbers;
+    my $command_length = length($commands[0]);
+    print("$command_length, $numbers\n");
+    $total += $command_length * $numbers;
 }
 
 close ($file);
