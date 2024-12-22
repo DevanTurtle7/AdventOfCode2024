@@ -1,3 +1,5 @@
+# Super super super sloppy but it took forever and I don't feel like refactoring
+
 use strict;
 use warnings;
 
@@ -62,9 +64,9 @@ sub memoized_move {
             $command_str .= "<" x abs($delta_x);
         }
 
-        if ($y_dir == 1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
+        if ($y_dir == -1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
             $y = $button_y;
-            $command_str .= "v" x abs($delta_y);
+            $command_str .= "^" x abs($delta_y);
         }
 
         if ($x_dir == 1 && exists $valid_key_pos{"$button_x,$y"} && $x != $button_x) {
@@ -72,9 +74,9 @@ sub memoized_move {
             $command_str .= ">" x abs($delta_x);
         }
 
-        if ($y_dir == -1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
+        if ($y_dir == 1 && exists $valid_key_pos{"$x,$button_y"} && $y != $button_y) {
             $y = $button_y;
-            $command_str .= "^" x abs($delta_y);
+            $command_str .= "v" x abs($delta_y);
         }
     }
 
@@ -87,14 +89,16 @@ sub memoized_move {
 my %all_paths_memo;
 
 sub get_all_paths {
-    my ($from, $to) = @_;
+    my ($from, $to, $keypad_ref, $valid_key_pos_ref) = @_;
 
     if (exists $all_paths_memo{$from} && exists $all_paths_memo{$from}{$to}) {
         return @{$all_paths_memo{$from}{$to}};
     }
 
-    my ($from_x, $from_y) = @{$dir_keypad{$from}};
-    my ($to_x, $to_y) = @{$dir_keypad{$to}};
+    my %keypad = %{$keypad_ref};
+    my %valid_key_pos = %{$valid_key_pos_ref};
+    my ($from_x, $from_y) = @{$keypad{$from}};
+    my ($to_x, $to_y) = @{$keypad{$to}};
     my $delta_x = $to_x - $from_x;
     my $delta_y = $to_y - $from_y;
 
@@ -110,17 +114,17 @@ sub get_all_paths {
     my $y_char = $y_dir == -1 ? "^" : "v";
     my @paths;
 
-    if ($delta_x != 0 && exists $valid_dir_key_pos{"$new_x,$from_y"}) {
-        my $new_from = $valid_dir_key_pos{"$new_x,$from_y"};
-        my @x_paths = get_all_paths($new_from, $to);
+    if ($delta_x != 0 && exists $valid_key_pos{"$new_x,$from_y"}) {
+        my $new_from = $valid_key_pos{"$new_x,$from_y"};
+        my @x_paths = get_all_paths($new_from, $to, $keypad_ref, $valid_key_pos_ref);
 
         foreach my $path (@x_paths) {
             push(@paths, $x_char.$path);
         }
     }
-    if ($delta_y != 0 && exists $valid_dir_key_pos{"$from_x,$new_y"}) {
-        my $new_from = $valid_dir_key_pos{"$from_x,$new_y"};
-        my @y_paths = get_all_paths($new_from, $to);
+    if ($delta_y != 0 && exists $valid_key_pos{"$from_x,$new_y"}) {
+        my $new_from = $valid_key_pos{"$from_x,$new_y"};
+        my @y_paths = get_all_paths($new_from, $to, $keypad_ref, $valid_key_pos_ref);
 
         foreach my $path (@y_paths) {
             push(@paths, $y_char.$path);
@@ -129,27 +133,6 @@ sub get_all_paths {
 
     $all_paths_memo{$from}{$to} = \@paths;
     return @paths;
-}
-
-sub command_to_movements {
-    my ($command, $keypad_ref, $valid_key_pos_ref) = @_;
-    my %keypad = %{$keypad_ref};
-    my %valid_key_pos = %{$valid_key_pos_ref};
-    my ($x, $y) = @{$keypad{"A"}};
-    my $command_str = "";
-
-    for my $i (0..length($command) - 1) {
-        my $from_key = $valid_key_pos{"$x,$y"};
-        my $to_key = substr($command, $i, 1);
-        my ($button_x, $button_y) = @{$keypad{$to_key}};
-
-        $command_str .= memoized_move($from_key, $to_key, $keypad_ref, $valid_key_pos_ref);
-
-        $x = $button_x;
-        $y = $button_y;
-    }
-
-    return $command_str
 }
 
 sub calculate_cost {
@@ -174,7 +157,6 @@ sub calculate_cost {
                 my $reverse_cost = memoized_calculate_cost("A".$reverse_moves, $count - 1);
 
                 if ($reverse_cost < $regular_cost) {
-                    print("CHEAPER: $from, $to, $reverse_moves THAN $moves\n");
                     return $reverse_cost;
                 } else {
                     return $regular_cost;
@@ -209,6 +191,28 @@ sub memoized_calculate_cost {
     return $result;
 }
 
+sub get_all_possible_commands {
+    my ($number_str, $i) = @_;
+
+    if ($i >= length($number_str) -1) {
+        return ("");
+    }
+
+    my $from = substr($number_str, $i, 1);
+    my $to = substr($number_str, $i + 1, 1);
+    my @paths = get_all_paths($from, $to, \%num_keypad, \%valid_num_key_pos);
+    my @remaining_commands = get_all_possible_commands($number_str, $i + 1);
+    my @possible_commands;
+
+    foreach my $path (@paths) {
+        foreach my $command_str (@remaining_commands) {
+            push(@possible_commands, $path.$command_str);
+        }
+    }
+
+    return @possible_commands
+}
+
 open (my $file, "<", "input.txt") or die $!;
 
 my $total = 0;
@@ -216,32 +220,22 @@ my $total = 0;
 while (my $line = <$file>) {
     chomp($line);
 
-    my $command_str = $line;
+    my $lowest_cost = "inf" + 0;
+    my @possible_commands = get_all_possible_commands("A".$line, 0);
+
+    foreach my $command_str (@possible_commands) {
+        my $cost = memoized_calculate_cost("A".$command_str, 24);
+
+        if ($cost < $lowest_cost) {
+            $lowest_cost = $cost;
+        }
+    }
+
     my $numbers = $line;
     $numbers =~ s/\D//g;
     $numbers += 0;
-
-    my $dir_command_str = command_to_movements(
-        $command_str,
-        \%num_keypad,
-        \%valid_num_key_pos
-    );
-
-    $dir_command_str = "A".$dir_command_str;
-    my $cost = memoized_calculate_cost($dir_command_str, 24);
-    print("$line: COST: $cost\n");
-
-    $total += $cost * $numbers;
+    $total += $lowest_cost * $numbers;
 }
 
 close ($file);
 print("$total\n");
-
-my @paths = get_all_paths("<", "^");
-@paths = get_all_paths("<", "^");
-my $num_paths = $#paths + 1;
-print("$num_paths paths\n");
-
-foreach my $path (@paths) {
-    print("$path\n");
-}
