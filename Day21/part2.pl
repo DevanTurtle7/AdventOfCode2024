@@ -84,6 +84,53 @@ sub memoized_move {
     return $command_str;
 }
 
+my %all_paths_memo;
+
+sub get_all_paths {
+    my ($from, $to) = @_;
+
+    if (exists $all_paths_memo{$from} && exists $all_paths_memo{$from}{$to}) {
+        return @{$all_paths_memo{$from}{$to}};
+    }
+
+    my ($from_x, $from_y) = @{$dir_keypad{$from}};
+    my ($to_x, $to_y) = @{$dir_keypad{$to}};
+    my $delta_x = $to_x - $from_x;
+    my $delta_y = $to_y - $from_y;
+
+    if ($delta_x == 0 && $delta_y == 0) {
+        return ("A");
+    }
+
+    my $x_dir = $delta_x == 0 ? 0 : $delta_x / abs($delta_x);
+    my $y_dir = $delta_y == 0 ? 0 : $delta_y / abs($delta_y);
+    my $new_x = $from_x + $x_dir;
+    my $new_y = $from_y + $y_dir;
+    my $x_char = $x_dir == -1 ? "<" : ">";
+    my $y_char = $y_dir == -1 ? "^" : "v";
+    my @paths;
+
+    if ($delta_x != 0 && exists $valid_dir_key_pos{"$new_x,$from_y"}) {
+        my $new_from = $valid_dir_key_pos{"$new_x,$from_y"};
+        my @x_paths = get_all_paths($new_from, $to);
+
+        foreach my $path (@x_paths) {
+            push(@paths, $x_char.$path);
+        }
+    }
+    if ($delta_y != 0 && exists $valid_dir_key_pos{"$from_x,$new_y"}) {
+        my $new_from = $valid_dir_key_pos{"$from_x,$new_y"};
+        my @y_paths = get_all_paths($new_from, $to);
+
+        foreach my $path (@y_paths) {
+            push(@paths, $y_char.$path);
+        }
+    }
+
+    $all_paths_memo{$from}{$to} = \@paths;
+    return @paths;
+}
+
 sub command_to_movements {
     my ($command, $keypad_ref, $valid_key_pos_ref) = @_;
     my %keypad = %{$keypad_ref};
@@ -106,31 +153,35 @@ sub command_to_movements {
 }
 
 sub calculate_cost {
-    my ($command_str, $count, $start) = @_;
-    #print("command: $command_str\n");
+    my ($command_str, $count) = @_;
 
-    if (length($command_str) == 1) {
-        if ($command_str eq "A") {
-            return 1;
-        } else {
-            print("IDK WHAT THIS IS, $command_str\n");
-        }
+    if (length($command_str) == 1 && $command_str eq "A") {
+        return 1;
     } if (length($command_str) == 2) {
         my $from = substr($command_str, 0, 1);
         my $to = substr($command_str, 1, 1);
         my $moves = memoized_move($from, $to, \%dir_keypad, \%valid_dir_key_pos);
-
-        if ($start) {
-            my $start_moves = memoized_move("A", $from, \%dir_keypad, \%valid_dir_key_pos);
-            $moves = $start_moves . $moves;
-        }
-
         my $cost = length($moves);
 
-        if ($count <= 0) {
+        if ($count == 0) {
             return $cost;
         } else {
-            return calculate_cost($moves, $count - 1, $start);
+            my $regular_cost = memoized_calculate_cost("A".$moves, $count - 1);
+
+            if ($from ne "<" && $to ne "<") {
+                my $first_char = substr($moves, 0, 1);
+                my $reverse_moves = reverse(substr($moves, 0, length($moves) - 1))."A";
+                my $reverse_cost = memoized_calculate_cost("A".$reverse_moves, $count - 1);
+
+                if ($reverse_cost < $regular_cost) {
+                    print("CHEAPER: $from, $to, $reverse_moves THAN $moves\n");
+                    return $reverse_cost;
+                } else {
+                    return $regular_cost;
+                }
+            } else {
+                return $regular_cost;
+            }
         }
     }
 
@@ -138,10 +189,24 @@ sub calculate_cost {
 
     for my $i (0..length($command_str) - 2) {
         my $command_substr = substr($command_str, $i, 2);
-        $cost += calculate_cost($command_substr, $count, $start && $i == 0);
+        $cost += memoized_calculate_cost($command_substr, $count);
     }
 
     return $cost;
+}
+
+my %cost_memo;
+
+sub memoized_calculate_cost {
+    my ($command_str, $count) = @_;
+    
+    if (exists $cost_memo{$command_str} && exists $cost_memo{$command_str}{$count}) {
+        return $cost_memo{$command_str}{$count}
+    }
+
+    my $result = calculate_cost($command_str, $count);
+    $cost_memo{$command_str}{$count} = $result;
+    return $result;
 }
 
 open (my $file, "<", "input.txt") or die $!;
@@ -162,13 +227,21 @@ while (my $line = <$file>) {
         \%valid_num_key_pos
     );
 
-    print("$dir_command_str\n");
+    $dir_command_str = "A".$dir_command_str;
+    my $cost = memoized_calculate_cost($dir_command_str, 24);
+    print("$line: COST: $cost\n");
 
-    my $cost = calculate_cost($dir_command_str, 1, !!1);
-    print("\nCOST: $cost\n");
-
-    $total += length($command_str) * $numbers;
+    $total += $cost * $numbers;
 }
 
 close ($file);
 print("$total\n");
+
+my @paths = get_all_paths("<", "^");
+@paths = get_all_paths("<", "^");
+my $num_paths = $#paths + 1;
+print("$num_paths paths\n");
+
+foreach my $path (@paths) {
+    print("$path\n");
+}
