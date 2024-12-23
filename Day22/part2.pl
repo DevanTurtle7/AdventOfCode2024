@@ -39,7 +39,6 @@ while (my $line = <$file>) {
     chomp($line);
     my $secret = $line;
     my @prices;
-    my %ranges;
     print("$line_num\n");
 
     for my $i (1..2000) {
@@ -51,22 +50,17 @@ while (my $line = <$file>) {
             shift(@prices);
         }
 
+        if ($#prices < 3) {
+            next;
+        }
+
         my @changes = map {$prices[$_] - $prices[$_-1]} (1..$#prices);
         my $change_key = join(",", @changes);
+        my $current_price = $prices[-1];
 
-        if (exists $ranges{$change_key}) {
-            if ($ranges{$change_key} < $prices[-1]) {
-                $ranges{$change_key} = $prices[-1];
-            }
-        } else {
-            $ranges{$change_key} = $prices[-1];
-        }
-    }
-
-    foreach my $change_key (keys %ranges) {
         unless (exists $changes{$line_num} && exists $changes{$line_num}{$change_key}) {
             $changes{$line_num}{$change_key} = 1;
-            $change_profits{$change_key} += $ranges{$change_key};
+            $change_profits{$change_key} += $current_price;
         }
     }
 
