@@ -54,10 +54,6 @@ while (my $line = <$file>) {
         my @changes = map {$prices[$_] - $prices[$_-1]} (1..$#prices);
         my $change_key = join(",", @changes);
 
-        if ($change_key eq "-2,1,-1,3") {
-            my $prices = join(",", @prices);
-        }
-
         if (exists $ranges{$change_key}) {
             if ($ranges{$change_key} < $prices[-1]) {
                 $ranges{$change_key} = $prices[-1];
@@ -78,11 +74,6 @@ while (my $line = <$file>) {
 }
 
 close ($file);
-
-foreach my $line_num (keys %changes) {
-    foreach my $change_key (keys %{$changes{$line_num}}) {
-    }
-}
 
 my $most_profit = -1;
 
